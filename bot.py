@@ -461,6 +461,9 @@ class HeistBot(commands.Bot):
 
             lines.append(f"{idx}. {display_name} - Rockstar: {row.rockstar_name}")
 
+        # Check if owner is already one of the 3 players
+        owner_is_player = any(entry.user_id == self.owner_id for entry in queued_docs)
+
         if owner_member:
             try:
                 await thread.add_user(owner_member)
@@ -472,7 +475,9 @@ class HeistBot(commands.Bot):
             owner_mention = f"<@{self.owner_id}>"
             owner_name = "verno"
 
-        mentions.append(owner_mention)
+        # Only add owner mention if they're not already in the player list
+        if not owner_is_player:
+            mentions.append(owner_mention)
 
         embed = discord.Embed(
             title=f"{heist_name} Lobby Ready",
