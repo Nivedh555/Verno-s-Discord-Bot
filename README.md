@@ -125,7 +125,7 @@ MIT License — Use freely!
 ## Support
 
 Issues? Suggestions?
-- Message: @verno on Discord
+- Message: @undisputedbulmer on Discord
 - Issues tab on GitHub
 
 ---
