@@ -1,4 +1,4 @@
-# 🎮 Verno's Discord Heist Bot
+# 🎮 Steve's Discord Heist Bot
 
 A lightweight Discord bot for managing GTA Online heist queues with real-time updates and automatic thread creation.
 
@@ -6,7 +6,7 @@ A lightweight Discord bot for managing GTA Online heist queues with real-time up
 
 ✅ **Slash Commands** — Easy-to-use `/queue_status`, `/setup_heist_panel`, `/clear_heist_queue`  
 ✅ **Real-time Queue Updates** — See player names and progress bars instantly  
-✅ **Automatic Thread Creation** — Private threads spawn at 3/3 players  
+✅ **Automatic Thread Creation** — Private threads spawn at 4/4 players  
 ✅ **Persistent Storage** — Queue state saved in Discord pinned messages  
 ✅ **MongoDB-Free** — No database required, 100% Discord-native storage  
 ✅ **Multi-Timezone Support** — All timestamps in UTC for universal clarity  
@@ -29,8 +29,8 @@ A lightweight Discord bot for managing GTA Online heist queues with real-time up
 ### Installation
 
 ```bash
-git clone https://github.com/Nivedh555/Verno-s-Discord-Bot.git
-cd Verno-s-Discord-Bot
+git clone https://github.com/Nivedh555/Steve-s-Discord-Bot.git
+cd Steve-s-Discord-Bot
 python -m venv .venv
 .venv\Scripts\activate  # On Linux/Mac: source .venv/bin/activate
 pip install -r requirements.txt
@@ -83,7 +83,7 @@ Clear individual heist queue or all queues at once
 1. **Setup Panel** — Owner runs `/setup_heist_panel` to create the queue dropdown
 2. **Join Queue** — Players select a heist and enter their Rockstar name
 3. **Real-time Updates** — Embed updates instantly as players join
-4. **Auto Thread** — At 3/3 players, a private thread spawns with UTC timestamp
+4. **Auto Thread** — At 4/4 players, a private thread spawns with UTC timestamp
 5. **Persistence** — Queue state recovers from Discord pinned messages on restart
 
 ## Deployment
@@ -125,7 +125,7 @@ MIT License — Use freely!
 ## Support
 
 Issues? Suggestions?
-- Message: @undisputedbulmer on Discord
+- Message: @Steve on Discord
 - Issues tab on GitHub
 
 ---

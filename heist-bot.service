@@ -1,0 +1,17 @@
+[Unit]
+Description=Discord Heist Queue Bot
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Steve-s-Discord-Bot
+Environment="PATH=/home/ubuntu/Steve-s-Discord-Bot/.venv/bin"
+ExecStart=/home/ubuntu/Steve-s-Discord-Bot/.venv/bin/python bot.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
