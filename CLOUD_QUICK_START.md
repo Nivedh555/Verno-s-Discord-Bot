@@ -1,118 +1,61 @@
-# 🎮 Heist Bot Cloud Deployment - Quick Reference
+# Quick Reference — Deploy & Operate
 
-## TL;DR - Fastest Deployment Path
+Fast commands. For the full walkthrough see **DEPLOYMENT.md**.
 
-### Oracle Cloud (FREE)
+## Deploy (Oracle Always-Free VM, India region)
+
 ```bash
-# 1. Sign up: oracle.com/cloud/free
-# 2. Create Ubuntu 22.04 instance
-# 3. SSH into instance, then:
+# On the VM (Ubuntu), after SSH:
+git clone https://github.com/<you>/<your-repo>.git queue-bot
+cd queue-bot
+chmod +x deploy-cloud.sh
+./deploy-cloud.sh                 # installs Postgres + Python + systemd service
 
-sudo apt update && sudo apt install -y python3.11 python3-pip python3-venv git
-git clone https://github.com/Nivedh555/Steve-s-Discord-Bot.git
-cd Steve-s-Discord-Bot
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# 4. Create .env
-nano .env
-# Paste:
-# DISCORD_TOKEN=your_token_here
-# BOT_OWNER_ID=your_user_id_here
-# Press Ctrl+O, Enter, Ctrl+X
-
-# 5. Setup auto-restart
-bash deploy-cloud.sh
-
-# 6. Start bot
-sudo systemctl start heist-bot
-sudo systemctl status heist-bot
+nano .env                         # set DISCORD_TOKEN= ...
+sudo systemctl start queue-bot
+sudo journalctl -u queue-bot -f   # watch it come online
 ```
 
-### Linode ($5/month)
-Same as Oracle Cloud steps above, just different sign-up.
+The database (PostgreSQL) runs on the **same VM** as the bot, so queries are
+~0 ms and it's fast for users in every country. The schema is created
+automatically on first start.
 
----
-
-## Essential Commands
+## Essential commands
 
 | Command | Purpose |
-|---------|---------|
-| `sudo systemctl start heist-bot` | Start bot |
-| `sudo systemctl stop heist-bot` | Stop bot |
-| `sudo systemctl restart heist-bot` | Restart bot |
-| `sudo systemctl status heist-bot` | Check status |
-| `sudo journalctl -u heist-bot -f` | View live logs |
-| `sudo journalctl -u heist-bot -n 50` | View last 50 log lines |
-| `git pull origin main` | Update code |
+| --- | --- |
+| `sudo systemctl start queue-bot` | Start |
+| `sudo systemctl stop queue-bot` | Stop |
+| `sudo systemctl restart queue-bot` | Restart |
+| `sudo systemctl status queue-bot` | Status |
+| `sudo journalctl -u queue-bot -f` | Live logs |
+| `git pull && sudo systemctl restart queue-bot` | Update code |
+| `./scripts/setup_backups.sh` | Install daily DB backups |
 
----
+## In Discord (per server, by an admin)
+
+1. `/setup` — choose the panel channel (+ optional log channel / admin role).
+2. `/activity add` — define your queues (or use the defaults).
+3. `/panel` — post the queue panel.
+
+Players use the dropdown to join; a private session thread is created when a
+queue fills.
 
 ## Troubleshooting
 
-### Bot won't start
-```bash
-sudo journalctl -u heist-bot -n 50
-# Look for DISCORD_TOKEN error or permission denied
-```
+| Symptom | Check |
+| --- | --- |
+| Won't start | `sudo journalctl -u queue-bot -n 50` — usually missing `DISCORD_TOKEN` |
+| DB errors | `sudo systemctl status postgresql`; verify `DATABASE_URL` in `.env` |
+| Commands missing | Global sync can take ~1h; set `DEV_GUILD_ID` in `.env` for instant sync in one server |
+| Sessions don't create | Bot needs **Create Private Threads** + **Manage Threads** in the channel |
 
-### Bot keeps restarting
-```bash
-# Check if .env exists and has correct format
-cat .env
-# Make sure no syntax errors in bot.py
-python3 -m py_compile bot.py
-```
+## File reference
 
-### Commands don't work
-```bash
-# Restart bot
-sudo systemctl restart heist-bot
-# Wait 30 seconds
-# Try slash command again
-```
-
-### View current bot IP
-```bash
-hostname -I
-```
-
----
-
-## Testing After Deployment
-
-1. ✅ Go to your Discord server
-2. ✅ Type `/heist` 
-3. ✅ Should see the panel with "When 4 players join..."
-4. ✅ Try adding yourself to queue
-5. ✅ Check logs: `sudo journalctl -u heist-bot -n 5`
-
----
-
-## Cost Estimate
-
-| Provider | Cost | Ideal For |
-|----------|------|-----------|
-| Oracle Cloud | FREE (12 mo) | Testing, small servers, always-on trials |
-| Linode | $5/month | Reliable, production-ready |
-| AWS | ~$10/month | Large scale, but overkill for this bot |
-
----
-
-## File Reference
-
-- `DEPLOYMENT.md` - Full deployment guide
-- `deploy-cloud.sh` - Auto-setup script
-- `heist-bot.service` - Systemd config
-- `bot.py` - Main bot code
-- `requirements.txt` - Dependencies
-
----
-
-## Getting Help
-
-1. Check logs: `sudo journalctl -u heist-bot -f`
-2. Re-read DEPLOYMENT.md for your cloud provider
-3. Verify .env: `cat .env | grep DISCORD_TOKEN`
-4. Test locally first: `python3 bot.py`
+- `DEPLOYMENT.md` — full guide
+- `deploy-cloud.sh` — installer (Postgres + venv + systemd)
+- `heist-bot.service` — reference systemd unit
+- `scripts/setup_backups.sh` — daily `pg_dump` backups
+- `scripts/reset_runtime.py` — clear queues/sessions/usage for a clean test
+- `bot/` — the bot (run with `python -m bot.main` or `python run.py`)
+- `requirements.txt` — dependencies

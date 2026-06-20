@@ -1,195 +1,143 @@
-# 🚀 Cloud Deployment Guide
+# Deploying the Queue Bot (free, 24/7, public)
 
-This guide covers deploying the bot to Oracle Cloud (free) or Linode (paid).
+This guide deploys the bot to a **free Oracle Cloud Always-Free VM** with
+**PostgreSQL running on the same machine**. Because the bot and database are
+co-located, queries are ~0 ms and the bot is fast for users in **every country**
+(Discord handles each user's distance, not your database).
 
-## Option 1: Oracle Cloud (FREE - 12 months always-free tier)
+You do this **once**. After that the bot runs 24/7 and anyone can invite it.
 
-### Step 1: Create Oracle Cloud Account
-1. Go to [oracle.com/cloud/free](https://oracle.com/cloud/free)
-2. Sign up with your email
-3. Create an account (includes $300 free credits + always-free tier)
+---
 
-### Step 2: Launch a Compute Instance
-1. Go to **Compute → Instances**
-2. Click **Create Instance**
-3. Choose:
-   - **Image:** Ubuntu 22.04 (always-free eligible)
-   - **Shape:** Ampere (ARM-based, always-free eligible) - **VM.Standard.A1.Flex** - 4 OCPU recommended
-   - **VCN and Subnet:** Keep defaults (create new if needed)
-   - Add SSH key (download and save it!)
-4. Click **Create**
-5. Wait for instance to be **Running** (status green)
+## Overview
 
-### Step 3: Connect to Your Instance
-```powershell
-# On Windows, use WSL or Git Bash
-ssh -i your-private-key.key ubuntu@YOUR_INSTANCE_IP
 ```
-
-### Step 4: Install Python and Dependencies
-```bash
-sudo apt update
-sudo apt install -y python3.11 python3-pip python3-venv git
-```
-
-### Step 5: Clone & Setup Bot
-```bash
-git clone https://github.com/Nivedh555/Steve-s-Discord-Bot.git
-cd Steve-s-Discord-Bot
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-### Step 6: Set Environment Variables
-```bash
-# Create .env file with your bot token and owner ID
-nano .env
-```
-Paste:
-```
-DISCORD_TOKEN=your_bot_token_here
-BOT_OWNER_ID=your_discord_user_id
-```
-Press `Ctrl+O`, Enter, `Ctrl+X` to save.
-
-### Step 7: Test Bot (optional)
-```bash
-python bot.py
-# Press Ctrl+C to stop after 10 seconds if it connects
-```
-
-### Step 8: Setup Auto-Restart with Systemd
-```bash
-# Create systemd service file
-sudo nano /etc/systemd/system/heist-bot.service
-```
-
-Paste this:
-```ini
-[Unit]
-Description=Discord Heist Queue Bot
-After=network.target
-
-[Service]
-Type=simple
-User=ubuntu
-WorkingDirectory=/home/ubuntu/Steve-s-Discord-Bot
-Environment="PATH=/home/ubuntu/Steve-s-Discord-Bot/.venv/bin"
-ExecStart=/home/ubuntu/Steve-s-Discord-Bot/.venv/bin/python bot.py
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Then enable and start:
-```bash
-sudo systemctl enable heist-bot
-sudo systemctl start heist-bot
-sudo systemctl status heist-bot
-```
-
-### Step 9: Monitor Logs
-```bash
-# View live logs
-sudo journalctl -u heist-bot -f
-
-# View last 50 lines
-sudo journalctl -u heist-bot -n 50
+┌─────────────────────────────────────────────────────────┐
+│  Oracle Always-Free ARM VM  (Ubuntu, an India region)    │
+│                                                          │
+│   systemd ─▶ queue-bot (python -m bot.main)              │
+│                     │ localhost (~0 ms)                  │
+│                     ▼                                    │
+│              PostgreSQL                                  │
+└─────────────────────────────────────────────────────────┘
+         ▲                                   ▲
+         │ Discord gateway (outbound)        │ users worldwide reach
+         └───────────────────────────────────┘ Discord's edge, not your DB
 ```
 
 ---
 
-## Option 2: Linode ($5/month)
+## Step 1 — Push the code to GitHub
 
-### Step 1: Create Linode Account
-1. Go to [linode.com](https://linode.com)
-2. Sign up (promo code **HEIST50** = $50 credit)
+The VM pulls the code from your repo. From your PC, commit and push the `bot/`
+package (your `.env` is gitignored and stays private):
 
-### Step 2: Create a Linode
-1. Click **Create → Linode**
-2. Choose:
-   - **Image:** Ubuntu 22.04 LTS
-   - **Region:** Pick closest to you
-   - **Linode Plan:** Nanode 1GB ($5/month, always eligible)
-   - **Root Password:** Create strong password
-3. Click **Create Linode**
-
-### Step 3: SSH Into Your Linode
 ```bash
-ssh root@YOUR_LINODE_IP
+git add bot/ run.py requirements.txt deploy-cloud.sh heist-bot.service scripts/ LEGAL/ *.md
+git commit -m "Multi-tenant queue bot"
+git push
 ```
-Enter the root password you created.
 
-### Step 4-9: Follow the same steps as Oracle Cloud (Steps 4-9 above)
-The commands are identical for Linode.
+## Step 2 — Create the Oracle Always-Free VM
+
+1. Sign up at <https://www.oracle.com/cloud/free/>. Choose a **home region in
+   India** (Mumbai or Hyderabad) — this is permanent, so pick it carefully.
+2. **Compute → Instances → Create Instance.**
+   - Image: **Ubuntu 22.04 or 24.04**.
+   - Shape: **Ampere (ARM) `VM.Standard.A1.Flex`**, 1–2 OCPU, 6–12 GB RAM
+     (all within Always-Free).
+   - Add your **SSH public key** (so you can log in).
+   - Create. If you see *"Out of capacity"*, retry later or try the other India
+     region — free ARM is in high demand.
+3. Note the instance's **public IP**.
+
+## Step 3 — Connect and deploy
+
+```bash
+ssh ubuntu@YOUR_PUBLIC_IP
+
+# clone your repo
+git clone https://github.com/<you>/<your-repo>.git queue-bot
+cd queue-bot
+
+# run the installer (installs Postgres + Python + systemd service)
+chmod +x deploy-cloud.sh
+./deploy-cloud.sh
+```
+
+The script installs PostgreSQL, creates the database, builds the venv, installs
+dependencies, and registers the `queue-bot` systemd service.
+
+## Step 4 — Add your token and start
+
+```bash
+nano .env          # set DISCORD_TOKEN=...  (DATABASE_URL is already filled in)
+sudo systemctl start queue-bot
+sudo journalctl -u queue-bot -f     # watch it boot
+```
+
+You're looking for: `Database pool ready and schema applied` and
+`Online as ... across N guild(s)`.
+
+## Step 5 — Invite the bot to any server
+
+Use this invite URL (replace `CLIENT_ID` with your application's client ID from
+the Discord Developer Portal). The permissions integer grants exactly what the
+bot needs, including **Create Private Threads** and **Manage Threads** for
+sessions:
+
+```
+https://discord.com/api/oauth2/authorize?client_id=CLIENT_ID&permissions=397284472384&scope=bot%20applications.commands
+```
+
+In each server an admin runs `/setup`, then `/activity add` and `/panel`.
+
+## Step 6 (recommended) — Automatic backups
+
+Self-hosted Postgres means you own backups. Install a daily `pg_dump`:
+
+```bash
+chmod +x scripts/setup_backups.sh
+./scripts/setup_backups.sh
+```
+
+Keeps the last 7 daily compressed dumps in `./backups/`.
 
 ---
 
-## Verification Checklist
+## Day-to-day operations
 
-✅ Bot responds to `/heist` command on your Discord server  
-✅ `sudo systemctl status heist-bot` shows **active (running)**  
-✅ `sudo journalctl -u heist-bot -n 5` shows recent startup logs  
-✅ Panel appears when you run `/heist` command  
+| Task | Command |
+| --- | --- |
+| Status | `sudo systemctl status queue-bot` |
+| Restart | `sudo systemctl restart queue-bot` |
+| Stop | `sudo systemctl stop queue-bot` |
+| Live logs | `sudo journalctl -u queue-bot -f` |
+| Update code | `git pull && sudo systemctl restart queue-bot` |
+| Update deps | `.venv/bin/pip install -r requirements.txt && sudo systemctl restart queue-bot` |
 
----
+## Notes & gotchas
+
+- **No inbound ports needed.** The bot only makes outbound connections (to
+  Discord) and talks to Postgres on `localhost`, so you don't open firewall
+  ports for it.
+- **Free ARM capacity** can be scarce — retry instance creation if needed.
+- **Keep the VM in your free limits:** one A1 instance ≤ 2 OCPU / 12 GB total.
+- **Privileged intents:** not required. Set `MEMBERS_INTENT=true` in `.env`
+  (and enable it in the Developer Portal) only if you want faster member
+  resolution in large servers.
+- **100+ servers:** Discord requires bot verification (ID check + intent review)
+  past 100 servers. The `LEGAL/PRIVACY_POLICY.md` and `TERMS_OF_SERVICE.md` here
+  cover the policy requirement.
 
 ## Troubleshooting
 
-### Bot won't start
-```bash
-sudo journalctl -u heist-bot -n 50
-# Check for DISCORD_TOKEN or BOT_OWNER_ID errors
-```
+**Bot won't start** — `sudo journalctl -u queue-bot -n 50`. Most often a missing
+`DISCORD_TOKEN` or a wrong `DATABASE_URL` in `.env`.
 
-### 404 Unknown Interaction
-- Restart the bot: `sudo systemctl restart heist-bot`
-- Wait 10 seconds, try command again
+**Database connection errors** — confirm Postgres is up
+(`sudo systemctl status postgresql`) and that `DATABASE_URL` in `.env` matches
+the role/db the installer created (`postgresql://queuebot:...@localhost:5432/queuebot`).
 
-### Permission denied when cloning repo
-```bash
-ssh-keygen -t ed25519 -C "your_email@example.com"
-# Add public key to GitHub SSH keys
-# Then retry git clone with SSH URL
-```
-
-### Instance keeps stopping
-- Check Oracle Cloud billing (if trial ended)
-- Check Linode billing (if payment failed)
-- Increase compute hours in your plan
-
----
-
-## Updating the Bot
-
-When you push updates to GitHub:
-
-```bash
-cd Steve-s-Discord-Bot
-git pull origin main
-sudo systemctl restart heist-bot
-```
-
----
-
-## Cost Breakdown
-
-| Service | Cost | Notes |
-|---------|------|-------|
-| Oracle Cloud | FREE | 12 months always-free tier, then ~$5-10/month |
-| Linode | $5/month | Cheapest paid option, promo codes available |
-| Discord Bot | FREE | No limits for heist management |
-
----
-
-## Support
-
-Issues during deployment?
-- Check logs: `sudo journalctl -u heist-bot -f`
-- Verify `.env` has correct token: `cat .env`
-- Restart bot: `sudo systemctl restart heist-bot`
+**Slash commands not appearing** — global sync can take up to an hour. For an
+instant test in one server, set `DEV_GUILD_ID=<server id>` in `.env` and restart.

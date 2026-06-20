@@ -1,13 +1,19 @@
+# Reference systemd unit. deploy-cloud.sh generates this automatically with the
+# correct paths/user; this copy is for manual setups. Replace /home/ubuntu/queue-bot
+# with your actual repo path and `ubuntu` with your user, then:
+#   sudo cp heist-bot.service /etc/systemd/system/queue-bot.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now queue-bot
+
 [Unit]
-Description=Discord Heist Queue Bot
-After=network.target
+Description=Multi-tenant Discord Queue Bot
+After=network-online.target postgresql.service
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/Steve-s-Discord-Bot
-Environment="PATH=/home/ubuntu/Steve-s-Discord-Bot/.venv/bin"
-ExecStart=/home/ubuntu/Steve-s-Discord-Bot/.venv/bin/python bot.py
+WorkingDirectory=/home/ubuntu/queue-bot
+ExecStart=/home/ubuntu/queue-bot/.venv/bin/python -m bot.main
 Restart=always
 RestartSec=10
 StandardOutput=journal
