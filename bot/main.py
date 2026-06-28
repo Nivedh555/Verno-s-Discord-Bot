@@ -33,7 +33,11 @@ logger = logging.getLogger("queue-bot")
 def _build_intents(members_intent: bool = False) -> discord.Intents:
     intents = discord.Intents.default()
     intents.guilds = True
-    intents.messages = True
+    # The bot is slash-command only — it never reads message events, so we don't
+    # subscribe to them. This avoids receiving (and caching) messages we'd only
+    # throw away, which keeps memory down on small hosts. Sending messages does
+    # not require this intent.
+    intents.messages = False
     # Server Members is a privileged intent. When enabled it lets us resolve
     # members from the local cache instead of a per-user API fetch when building
     # session threads. Off by default so the bot works without privileged-intent
@@ -46,7 +50,14 @@ class QueueBot(commands.AutoShardedBot):
     """Multi-tenant queue bot. One process serves every guild it is invited to."""
 
     def __init__(self, settings: Settings) -> None:
-        super().__init__(command_prefix="!", intents=_build_intents(settings.members_intent))
+        # max_messages=None disables the in-memory message cache entirely (the
+        # bot never reads message history), saving a large chunk of RAM. The
+        # 256 MB free-tier hosts especially benefit.
+        super().__init__(
+            command_prefix="!",
+            intents=_build_intents(settings.members_intent),
+            max_messages=None,
+        )
         self.settings = settings
         self.db: Database = None  # type: ignore[assignment]  # set in setup_hook
         self.service = QueueService(self)
