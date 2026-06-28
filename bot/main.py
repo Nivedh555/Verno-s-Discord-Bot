@@ -59,6 +59,11 @@ class QueueBot(commands.AutoShardedBot):
         # same activity. Keyed by (guild_id, activity_id).
         self._session_locks: dict[tuple[int, int], asyncio.Lock] = {}
 
+        # Per-guild lock guarding the guild-wide active-session cap, so two
+        # different activities filling at the same instant can't both start a
+        # session and push the guild past MAX_ACTIVE_SESSIONS. Keyed by guild_id.
+        self._guild_session_locks: dict[int, asyncio.Lock] = {}
+
         self._prune_task: asyncio.Task[None] | None = None
 
     # --- lifecycle -----------------------------------------------------------
@@ -146,6 +151,13 @@ class QueueBot(commands.AutoShardedBot):
         if lock is None:
             lock = asyncio.Lock()
             self._session_locks[key] = lock
+        return lock
+
+    def guild_session_lock(self, guild_id: int) -> asyncio.Lock:
+        lock = self._guild_session_locks.get(guild_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._guild_session_locks[guild_id] = lock
         return lock
 
     # --- events --------------------------------------------------------------

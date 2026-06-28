@@ -24,6 +24,12 @@ DEFAULT_DAILY_LIMIT = 2
 DEFAULT_COOLDOWN = timedelta(minutes=20)
 DAILY_LIMIT_WINDOW = timedelta(hours=24)
 
+# Guild-wide cap on simultaneously active heists/sessions. While this many are
+# running, no new queue may start a session — players can't queue into a fresh
+# session until one of the active ones finishes (Complete button) or its thread
+# is closed/deleted, which frees a slot.
+MAX_ACTIVE_SESSIONS = 2
+
 # How long a built status embed is cached per guild before it is rebuilt.
 EMBED_CACHE_TTL = timedelta(minutes=5)
 

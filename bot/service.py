@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Optional
 
 import discord
 
-from .config import DAILY_LIMIT_WINDOW, EMBED_CACHE_TTL
+from .config import DAILY_LIMIT_WINDOW, EMBED_CACHE_TTL, MAX_ACTIVE_SESSIONS
 from .models import Activity, GuildConfig, QueueEntry
 
 if TYPE_CHECKING:
@@ -137,14 +137,20 @@ class QueueService:
         # Run the independent read checks concurrently — one round-trip instead of
         # five. Matters a lot when the database is geographically distant.
         since = now - DAILY_LIMIT_WINDOW
-        active_session, in_session, queued_activity_id, daily_count, last_used = (
-            await asyncio.gather(
-                self.db.get_active_session(activity.id),
-                self.db.user_in_active_session(guild.id, member.id),
-                self.db.get_user_queued_activity_id(guild.id, member.id),
-                self.db.count_recent_usage(guild.id, member.id, since),
-                self.db.last_usage(guild.id, member.id),
-            )
+        (
+            active_session,
+            active_count,
+            in_session,
+            queued_activity_id,
+            daily_count,
+            last_used,
+        ) = await asyncio.gather(
+            self.db.get_active_session(activity.id),
+            self.db.count_active_sessions(guild.id),
+            self.db.user_in_active_session(guild.id, member.id),
+            self.db.get_user_queued_activity_id(guild.id, member.id),
+            self.db.count_recent_usage(guild.id, member.id, since),
+            self.db.last_usage(guild.id, member.id),
         )
 
         # Evaluate the results in priority order.
@@ -152,6 +158,16 @@ class QueueService:
             return False, (
                 f"**{activity.name}** already has an active session. "
                 "Wait until it finishes before queueing again."
+            )
+
+        # Guild-wide cap: while MAX_ACTIVE_SESSIONS heists are running, no new
+        # queue may form for any other activity. `active_session is None` above
+        # means this activity isn't one of the running ones, so a join here would
+        # eventually start a session past the cap.
+        if active_count >= MAX_ACTIVE_SESSIONS:
+            return False, (
+                f"There are already {MAX_ACTIVE_SESSIONS} active heists running. "
+                "Wait until one finishes or its thread is closed before queueing."
             )
 
         if in_session:
@@ -214,17 +230,29 @@ class QueueService:
                 self.schedule_panel_refresh(guild, config)
                 return True, f"Queued for **{activity.name}**."
 
-            # Queue is full -> start a session with the first `capacity` players.
+            # Queue is full -> start a session with the first `capacity` players,
+            # unless the guild-wide cap was reached in the meantime (e.g. another
+            # activity filled at the same instant). The guild lock makes the
+            # cap check + session creation atomic across activities.
             ready = entries[: activity.capacity]
-            try:
-                await self._start_session(guild, channel, activity, config, ready)
-            except discord.HTTPException as exc:
-                logger.exception("Failed to start session for activity %s: %s", activity.id, exc)
-                await self.refresh_panel(guild, config)
-                return True, (
-                    f"Queued for **{activity.name}**, but I couldn't create the session "
-                    "thread right now. An admin can retry with `/force-start`."
-                )
+            guild_lock = self.bot.guild_session_lock(guild.id)
+            async with guild_lock:
+                if await self.db.count_active_sessions(guild.id) >= MAX_ACTIVE_SESSIONS:
+                    self.schedule_panel_refresh(guild, config)
+                    return True, (
+                        f"Queued for **{activity.name}** — the queue is full, but "
+                        f"{MAX_ACTIVE_SESSIONS} heists are already running. It'll start "
+                        "once a slot frees up (an admin can use `/force-start` then)."
+                    )
+                try:
+                    await self._start_session(guild, channel, activity, config, ready)
+                except discord.HTTPException as exc:
+                    logger.exception("Failed to start session for activity %s: %s", activity.id, exc)
+                    await self.refresh_panel(guild, config)
+                    return True, (
+                        f"Queued for **{activity.name}**, but I couldn't create the session "
+                        "thread right now. An admin can retry with `/force-start`."
+                    )
 
             await self.refresh_panel(guild, config)
             return True, (
@@ -256,11 +284,18 @@ class QueueService:
             if not entries:
                 return False, f"No one is queued for **{activity.name}**."
             ready = entries[: activity.capacity]
-            try:
-                await self._start_session(guild, channel, activity, config, ready)
-            except discord.HTTPException as exc:
-                logger.exception("Force-start failed for activity %s: %s", activity.id, exc)
-                return False, f"Couldn't create the **{activity.name}** thread right now."
+            guild_lock = self.bot.guild_session_lock(guild.id)
+            async with guild_lock:
+                if await self.db.count_active_sessions(guild.id) >= MAX_ACTIVE_SESSIONS:
+                    return False, (
+                        f"There are already {MAX_ACTIVE_SESSIONS} active heists. "
+                        "Finish one (Complete button) or close its thread first."
+                    )
+                try:
+                    await self._start_session(guild, channel, activity, config, ready)
+                except discord.HTTPException as exc:
+                    logger.exception("Force-start failed for activity %s: %s", activity.id, exc)
+                    return False, f"Couldn't create the **{activity.name}** thread right now."
             await self.refresh_panel(guild, config)
             return True, f"Started **{activity.name}** with {len(ready)} player(s)."
 

@@ -378,6 +378,12 @@ class Database:
         )
         return _row_to_session(row, [m["user_id"] for m in members])
 
+    async def count_active_sessions(self, guild_id: int) -> int:
+        """How many heists/sessions are currently active in this guild."""
+        return await self.pool.fetchval(
+            "SELECT COUNT(*) FROM sessions WHERE guild_id = $1", guild_id
+        )
+
     async def get_session_by_thread(self, thread_id: int) -> Session | None:
         row = await self.pool.fetchrow(
             "SELECT * FROM sessions WHERE thread_id = $1", thread_id
